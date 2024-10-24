@@ -1,35 +1,13 @@
 from collections.abc import Iterable
 from manim import *
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from nn.NN import *
 
 
-LAYER_SIZES = [3, 3, 2]
-
-W1 = np.array(
-    [
-        [0.1, 0.1, 0.1],
-        [0.2, 0.2, 0.2],
-        [0.3, 0.3, 0.3],
-    ]
-)
-
-W2 = np.array(
-    [
-        [0.1, 0.1],
-        [0.2, 0.2],
-        [0.2, 0.2],
-    ]
-)
-W = [W1, W2]
-INPUT = [
-        np.array([1.0, 0.5, 0.5]),
-        np.array([0.0, 0.1, 0.3]),
-        np.array([0.9, 0.2, 0.2]),
-        np.array([0.4, 0.7, 0.6]),
-        np.array([0.7, 0.5, 0.9]),
-]
-
-NODE_RADIOUS = 0.2
+NODE_RADIOUS = 0.1
 NODE_BORDER = 1.0
 
 
@@ -105,28 +83,72 @@ class Edges(VGroup):
         for w, edges in zip(weights, self.edges_groups):
             edges.set_weights(w)
 
+def get_weights(network: NN):
+    return [l.weights for l in network.layers]
+
+def normalize_values(matrix: np.array):
+    v_min = np.min(matrix)
+    v_max = np.max(matrix)
+    return (matrix - v_min) / (v_max - v_min)
+
+def normalize_weights_layers(weights):
+    return [normalize_values(w) for w in weights]
+
 
 class NNAnimation(Scene):
     def construct(self):
-        nodes = Nodes(LAYER_SIZES)
+        df = pd.read_csv("data/classification/data.three_gauss.train.100.csv")
+        x = np.array(df.iloc[:,:-1]).reshape((300, 2))
+        y = np.array(df.iloc[:,-1])
+        num_classes = 3
+
+        one_hot_encoded = np.zeros((y.size, num_classes))
+        one_hot_encoded[np.arange(y.size), y - 1] = 1
+        one_hot_encoded = one_hot_encoded.reshape((300, 3))
+
+        nn1 = NN(input_shape=(0,2))
+        nn1.add_new_random_layer(4, GELU())
+        nn1.add_new_random_layer(4, GELU())
+        nn1.add_new_random_layer(3, activation=Linear())
+
+        nodes = Nodes([2, 4, 4, 3])
         edges = Edges(nodes)
         self.play(Create(nodes))
         self.play(Create(edges))
         self.wait(DELAY)
-        edges.set_weights(W)
-        for input_vec in INPUT:
-            # forward pass
-            self.wait(DELAY)
-            vec = input_vec
-            for l_idx, layer in enumerate(nodes.layers):
-                layer.set_values(vec)
-                if l_idx < len(nodes.layers) - 1:
-                    vec = vec @ W[l_idx]
+        edges.set_weights(normalize_weights_layers(get_weights(nn1)))
+
+        LR = 0.01
+        ANIMATION_START = 0
+        ANIMATION_END = 10_000
+        ANIMATION_STEP = 1000
+        for step in range(10_000):
+            index = np.random.randint(x.shape[0])
+            x_i = x[index]
+            y_i = y[index]
+            yhat_i = nn1.apply(x_i)
+
+            # forward pass animation
+            if step >= ANIMATION_START and step < ANIMATION_END and (step % ANIMATION_STEP) == 0:
+                W = get_weights(nn1)
                 self.wait(DELAY)
-            # back propagation
-            for w_idx in range(len(nodes.layers) - 2, -1, -1):
-                W[w_idx] *= 1.3
-                edges.edges_groups[w_idx].set_weights(W[w_idx])
-                self.wait(DELAY)
-            nodes.set_zeros()
-        self.wait(5 * DELAY)
+                vec = x_i
+                for l_idx, layer in enumerate(nodes.layers):
+                    layer.set_values(normalize_values(vec))
+                    if l_idx < len(nodes.layers) - 1:
+                        vec = vec @ W[l_idx]
+                    self.wait(DELAY)
+
+            g, gb = nn1.backpropagate(yhat_i, y_i)
+            for i in range(len(nn1.layers)):
+                nn1.layers[i].weights -= LR * g[i]
+                nn1.layers[i].bias -= LR * gb[i]
+            
+            # back propagation animation
+            if step >= ANIMATION_START and step < ANIMATION_END and (step % ANIMATION_STEP) == 0:
+                W = normalize_weights_layers(get_weights(nn1))
+                for w_idx in range(len(nodes.layers) - 2, -1, -1):
+                    edges.edges_groups[w_idx].set_weights(W[w_idx])
+                    self.wait(DELAY)
+                nodes.set_zeros()
+        self.wait(5)
