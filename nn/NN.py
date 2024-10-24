@@ -6,6 +6,16 @@ import pickle
 def MSE(x, y):
     return np.sum((x - y)**2) / len(x)
 
+def logistic_cross_entropy(y_true, y_pred):
+    # Clip predictions to avoid log(0) which gives NaN
+    epsilon = 1e-15
+    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+    
+    # Compute cross-entropy
+    loss = -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+    
+    return loss
+
 
 class ActivationFunction(ABC):
 
@@ -156,7 +166,7 @@ class NN:
                 cur_layer = self.layers[k-1]
                 f_a = cur_layer.activation(cur_layer.last_a)
             
-            grad[k] = np.transpose(f_a) @ errors[k]
+            grad[k] = np.vstack(np.transpose(f_a)) @ errors[k]
             grad_b[k] = errors[k] 
         return grad, grad_b
 
