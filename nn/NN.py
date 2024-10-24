@@ -1,37 +1,63 @@
+from abc import ABC, abstractmethod
+
 import numpy as np
-import cupy as cp
-import pandas as pd
-import matplotlib.pyplot as plt
 import pickle
-import typing
 
 def MSE(x, y):
     return np.sum((x - y)**2) / len(x)
 
-def lin_act(x):
-    return x
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+class ActivationFunction(ABC):
 
-def grad_sigmoid(x: float) -> float:
-    return sigmoid(x) * (1 - sigmoid(x))
+    @abstractmethod
+    def fun(self, x):
+        pass
 
-def GELU(x):
-    return 0.5 * x * (1 + np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * np.power(x, 3))))
+    @abstractmethod
+    def grad(self, x):
+        pass
 
-def ELU(x, alpha=1.0):
-    return np.where(x >= 0, x, alpha * (np.exp(x) - 1))
+    def __call__(self, x):
+        return self.fun(x)
+    
 
-def grad_ELU(x, alpha=1.0):
-    return np.where(x >= 0, 1, alpha * np.exp(x))
+class Linear(ActivationFunction):
+    def fun(self, x):
+        return x
 
-def grad_GELU(x: float) -> float:
-    tanh_part = np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * x**3))
-    return 0.5 * (1 + tanh_part) + 0.5 * x * (1 - tanh_part**2) * (np.sqrt(2/np.pi) + 0.134145 * x**2)
+    def grad(self, x):
+        return np.ones(x.shape)
+    
+
+class Sigmoid(ActivationFunction):
+    def fun(self, x):
+        return 1 / (1 + np.exp(-x))
+    
+    def grad(self, x):
+        return self.fun(x) * (1 - self.fun(x))
+
+class GELU(ActivationFunction):
+    def fun(self, x):
+        return 0.5 * x * (1 + np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * np.power(x, 3))))
+    
+    def grad(self, x):
+        tanh_part = np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * x**3))
+        return 0.5 * (1 + tanh_part) + 0.5 * x * (1 - tanh_part**2) * (np.sqrt(2/np.pi) + 0.134145 * x**2)
+
+
+class ELU(ActivationFunction):
+    def __init__(self, alpha = 1.0):
+        self.alpha = alpha
+
+    def fun(self, x):
+        return np.where(x >= 0, x, self.alpha * (np.exp(x) - 1))
+    
+    def grad(self, x):
+        return np.where(x >= 0, 1, self.alpha * np.exp(x))
+    
 
 class Layer:
-    def __init__(self, neurons, input_shape, weights, bias, activation):
+    def __init__(self, neurons, input_shape, weights, bias, activation: ActivationFunction):
         self.neurons = neurons
         self.input_shape = input_shape
         assert weights.shape == (input_shape[1], neurons)
@@ -41,7 +67,7 @@ class Layer:
         self.activation = activation
         self.last_a = None
 
-    def make_factory(neurons, input_shape, activation, factory):
+    def make_factory(neurons, input_shape, activation: ActivationFunction, factory):
         return Layer(
             neurons = neurons,
             input_shape = input_shape,
@@ -83,7 +109,8 @@ class NN:
         else:
             return self.input_shape
 
-    def add_new_zero_layer(self, neurons, activation=sigmoid):
+    def add_new_zero_layer(self, neurons, activation: ActivationFunction | None = None):
+        activation = activation or Sigmoid()
         layer = Layer.make_zero(
             neurons,
             self.get_last_shape(),
@@ -92,7 +119,8 @@ class NN:
         self.layers.append(layer)
         return layer
     
-    def add_new_random_layer(self, neurons, activation=sigmoid):
+    def add_new_random_layer(self, neurons, activation: ActivationFunction | None = None):
+        activation = activation or Sigmoid()
         layer = Layer.make_random(
             neurons,
             self.get_last_shape(),
@@ -113,8 +141,9 @@ class NN:
         errors[-1] = (yhat - y)
         for i in range(len(errors)-2, -1, -1):
             uhm = errors[i+1] @ np.transpose(self.layers[i+1].weights)
-            errors[i] = grad_sigmoid(self.layers[i].last_a) * uhm
-        return errors
+            grad_fun = self.layers[i].activation.grad
+            errors[i] = grad_fun(self.layers[i].last_a) * uhm
+        return errors       
     
     def calculate_grads(self, errors):
         grad = [None] * len(self.layers)
@@ -178,7 +207,8 @@ class NN:
         if weights_path and errors_path:
             self.log_data(weights_path, errors_path, log_format)
 
-    def batch_descent(self, x, y, rate=1e-3, batch_size=x.shape[0]//10, weights_path=None, errors_path=None, log_format='pickle'):
+    def batch_descent(self, x, y, rate=1e-3, batch_size=None, weights_path=None, errors_path=None, log_format='pickle'):
+        batch_size = batch_size or x.shape[0]//10
         indexes = np.random.randint(x.shape[0], size=(batch_size, 1))
         x_chosen = x[indexes]
         y_chosen = y[indexes]
