@@ -77,36 +77,41 @@ class ELU(ActivationFunction):
     
 
 class Layer:
-    def __init__(self, neurons, input_shape, weights, bias, activation: ActivationFunction):
+    def __init__(self, neurons, input_shape, weights, bias, bias_active, activation: ActivationFunction):
         self.neurons = neurons
         self.input_shape = input_shape
         assert weights.shape == (input_shape[1], neurons)
         self.weights = weights
         assert bias.shape == (1, neurons)
-        self.bias = bias
+        self.bias = bias if bias_active else np.zeros_like(bias)
+        self.bias_active = bias_active
         self.activation = activation
         self.last_a = None
 
-    def make_factory(neurons, input_shape, activation: ActivationFunction, factory):
+    def make_factory(neurons, input_shape, activation: ActivationFunction, factory, bias_active = True):
         return Layer(
             neurons = neurons,
             input_shape = input_shape,
             weights = factory((input_shape[1], neurons)),
             bias = factory((1, neurons)),
-            activation = activation
+            activation = activation,
+            bias_active=bias_active,
         )
     
-    def make_zero(neurons, input_shape, activation):
-        return Layer.make_factory(neurons, input_shape, activation, np.zeros)
+    def make_zero(neurons, input_shape, activation, bias_active = True):
+        return Layer.make_factory(neurons, input_shape, activation, np.zeros, bias_active)
     
-    def make_random(neurons, input_shape, activation):
+    def make_random(neurons, input_shape, activation, bias_active = True):
         random_balanced = lambda shape: np.random.random(shape) - 0.5
-        return Layer.make_factory(neurons, input_shape, activation, random_balanced)
+        return Layer.make_factory(neurons, input_shape, activation, random_balanced, bias_active)
     
     def apply(self, inputs):
         intensities = inputs @ self.weights
-        self.last_a = intensities + self.bias
-        return self.activation(intensities + self.bias)
+        if self.bias_active:
+            self.last_a = intensities + self.bias
+        else:
+            self.last_a = intensities
+        return self.activation(self.last_a)
     
     def __str__(self):
         return f"LAYER(\nW:\n {repr(self.weights)} \nb:\n{repr(self.bias)})\n"
@@ -129,22 +134,24 @@ class NN:
         else:
             return self.input_shape
 
-    def add_new_zero_layer(self, neurons, activation: ActivationFunction | None = None):
+    def add_new_zero_layer(self, neurons, activation: ActivationFunction | None = None, bias_active=True):
         activation = activation or Sigmoid()
         layer = Layer.make_zero(
             neurons,
             self.get_last_shape(),
-            activation
+            activation,
+            bias_active,
         )
         self.layers.append(layer)
         return layer
     
-    def add_new_random_layer(self, neurons, activation: ActivationFunction | None = None):
+    def add_new_random_layer(self, neurons, activation: ActivationFunction | None = None, bias_active=True):
         activation = activation or Sigmoid()
         layer = Layer.make_random(
             neurons,
             self.get_last_shape(),
-            activation
+            activation,
+            bias_active,
         )
         self.layers.append(layer)
         return layer
@@ -214,7 +221,7 @@ class NN:
     def gradient_descent(self, x, y, rate=1e-3, weights_path=None, errors_path=None, log_format='pickle'):
         sumg, sumgb = self.get_zero_grads()
         for i, x_i in enumerate(x):
-            yhat = self.apply(x_i)
+            yhat = self.apply(x_i.reshape(1, -1))
             g, gb = self.backpropagate(yhat, y[i])
             for i in range(len(self.layers)):
                 sumg[i] -= rate * g[i]
@@ -238,7 +245,7 @@ class NN:
         index = np.random.randint(x.shape[0])
         x_i = x[index]
         y_i = y[index]
-        yhat_i = self.apply(x_i)
+        yhat_i = self.apply(x_i.reshape(1, -1))
         g, gb = self.backpropagate(yhat_i, y_i)
         for i in range(len(self.layers)):
             self.layers[i].weights -= rate * g[i]
