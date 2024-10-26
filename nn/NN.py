@@ -36,7 +36,7 @@ class Linear(ActivationFunction):
         return x
 
     def grad(self, x):
-        return np.ones(x.shape)
+        return np.diagflat(np.ones(x.shape))
     
 
 class Sigmoid(ActivationFunction):
@@ -44,15 +44,25 @@ class Sigmoid(ActivationFunction):
         return 1 / (1 + np.exp(-x))
     
     def grad(self, x):
-        return self.fun(x) * (1 - self.fun(x))
+        return np.diagflat(self.fun(x) * (1 - self.fun(x)))
+    
+class Softmax(ActivationFunction):
+    def fun(self, x):
+        shifted_x = x - np.max(x, axis=-1, keepdims=True)
+        exp_x = np.exp(shifted_x)
+        return exp_x / np.sum(exp_x, axis=-1, keepdims=True)
 
+    def grad(self, x):
+        s = self.fun(x).reshape(-1, 1)
+        return np.diagflat(s) - np.dot(s, s.T)
+    
 class GELU(ActivationFunction):
     def fun(self, x):
         return 0.5 * x * (1 + np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * np.power(x, 3))))
     
     def grad(self, x):
         tanh_part = np.tanh(np.sqrt(2/np.pi) * (x + 0.044715 * x**3))
-        return 0.5 * (1 + tanh_part) + 0.5 * x * (1 - tanh_part**2) * (np.sqrt(2/np.pi) + 0.134145 * x**2)
+        return np.diagflat(0.5 * (1 + tanh_part) + 0.5 * x * (1 - tanh_part**2) * (np.sqrt(2/np.pi) + 0.134145 * x**2))
 
 
 class ELU(ActivationFunction):
@@ -63,7 +73,7 @@ class ELU(ActivationFunction):
         return np.where(x >= 0, x, self.alpha * (np.exp(x) - 1))
     
     def grad(self, x):
-        return np.where(x >= 0, 1, self.alpha * np.exp(x))
+        return np.diagflat(np.where(x >= 0, 1, self.alpha * np.exp(x)))
     
 
 class Layer:
@@ -152,7 +162,7 @@ class NN:
         for i in range(len(errors)-2, -1, -1):
             uhm = errors[i+1] @ np.transpose(self.layers[i+1].weights)
             grad_fun = self.layers[i].activation.grad
-            errors[i] = grad_fun(self.layers[i].last_a) * uhm
+            errors[i] = uhm @ grad_fun(self.layers[i].last_a)
         return errors       
     
     def calculate_grads(self, errors):
