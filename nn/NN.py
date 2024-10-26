@@ -3,18 +3,37 @@ from abc import ABC, abstractmethod
 import numpy as np
 import pickle
 
-def MSE(x, y):
-    return np.sum((x - y)**2) / len(x)
+EPS = 1e-15
 
-def logistic_cross_entropy(y_true, y_pred):
-    # Clip predictions to avoid log(0) which gives NaN
-    epsilon = 1e-15
-    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+class LossFunction(ABC):
+
+    @abstractmethod
+    def fun(self, yhat, y):
+        pass
+
+    @abstractmethod
+    def grad(self, yhat, y):
+        pass
+
+    def __call__(self, yhat, y):
+        return self.fun(yhat, y)
+
+class MSE(LossFunction):
+    def fun(self, yhat, y):
+        return np.sum((yhat - y)**2) / len(yhat)
     
-    # Compute cross-entropy
-    loss = -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+    def grad(self, yhat, y):
+        return 2 * (yhat-y)
+
+class LogisticCrossEntropy(LossFunction):
+    def fun(self, yhat , y):
+        y_pred = np.clip(yhat, EPS, 1 - EPS)
+        return -np.mean(y * np.log(y_pred) + (1 - y) * np.log(1 - y_pred))
     
-    return loss
+    def grad(self, yhat, y):
+        y_pred = np.clip(yhat, EPS, 1 - EPS)
+        return -(y / y_pred) + (1 - y) / (1 - y_pred)
+    
 
 
 class ActivationFunction(ABC):
@@ -163,9 +182,9 @@ class NN:
             x = layer.apply(x)
         return x
 
-    def calculate_errors(self, yhat, y):
+    def calculate_errors(self, yhat, y, loss):
         errors = [None] * len(self.layers)
-        errors[-1] = (yhat - y)
+        errors[-1] = loss.grad(yhat, y)
         for i in range(len(errors)-2, -1, -1):
             uhm = errors[i+1] @ np.transpose(self.layers[i+1].weights)
             grad_fun = self.layers[i].activation.grad
@@ -195,8 +214,8 @@ class NN:
             grad_b[i] = np.zeros(layer.bias.shape)
         return grad, grad_b
 
-    def backpropagate(self, yhat, y):
-        errors = self.calculate_errors(yhat, y)
+    def backpropagate(self, yhat, y, loss):
+        errors = self.calculate_errors(yhat, y, loss)
         return self.calculate_grads(errors)
     
     def log_data(self, weights_path: str, errors_path: str, save_format: str = 'pickle'):
@@ -218,11 +237,11 @@ class NN:
                 for err in errors:
                     f.write(f"Errors:\n{err}\n")
 
-    def gradient_descent(self, x, y, rate=1e-3, weights_path=None, errors_path=None, log_format='pickle'):
+    def gradient_descent(self, x, y, loss: LossFunction, rate=1e-3, weights_path=None, errors_path=None, log_format='pickle'):
         sumg, sumgb = self.get_zero_grads()
         for i, x_i in enumerate(x):
             yhat = self.apply(x_i.reshape(1, -1))
-            g, gb = self.backpropagate(yhat, y[i])
+            g, gb = self.backpropagate(yhat, y[i], loss)
             for i in range(len(self.layers)):
                 sumg[i] -= rate * g[i]
                 sumgb[i] -= rate * gb[i]
@@ -234,19 +253,19 @@ class NN:
         if weights_path and errors_path:
             self.log_data(weights_path, errors_path, log_format)
 
-    def batch_descent(self, x, y, rate=1e-3, batch_size=None, weights_path=None, errors_path=None, log_format='pickle'):
+    def batch_descent(self, x, y, loss: LossFunction, rate=1e-3, batch_size=None, weights_path=None, errors_path=None, log_format='pickle'):
         batch_size = batch_size or x.shape[0]//10
         indexes = np.random.randint(x.shape[0], size=(batch_size, 1))
         x_chosen = x[indexes]
         y_chosen = y[indexes]
-        self.gradient_descent(x_chosen, y_chosen, rate=rate, weights_path=weights_path, errors_path=errors_path, log_format=log_format)
+        self.gradient_descent(x_chosen, y_chosen, loss, rate=rate, weights_path=weights_path, errors_path=errors_path, log_format=log_format)
 
-    def stochastic_descent(self, x, y, rate=1e-3, weights_path=None, errors_path=None, log_format='pickle'):
+    def stochastic_descent(self, x, y, loss: LossFunction, rate=1e-3, weights_path=None, errors_path=None, log_format='pickle'):
         index = np.random.randint(x.shape[0])
         x_i = x[index]
         y_i = y[index]
         yhat_i = self.apply(x_i.reshape(1, -1))
-        g, gb = self.backpropagate(yhat_i, y_i)
+        g, gb = self.backpropagate(yhat_i, y_i, loss)
         for i in range(len(self.layers)):
             self.layers[i].weights -= rate * g[i]
             self.layers[i].bias -= rate * gb[i]
