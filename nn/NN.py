@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+
 
 EPS = 1e-15
 
@@ -272,3 +273,37 @@ class NN:
 
         if weights_path and errors_path:
             self.log_data(weights_path, errors_path, log_format)
+
+    def draw(self, show_weights=False):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.axis('off')
+
+        layer_sizes = [self.input_shape[1]] + [layer.neurons for layer in self.layers]
+        max_layer_size = max(layer_sizes)
+
+        x_positions = np.linspace(0, len(layer_sizes) - 1, len(layer_sizes))
+        y_positions = [np.linspace(-max_layer_size / 2, max_layer_size / 2, size) for size in layer_sizes]
+
+        for layer_index, (layer_size, y_pos) in enumerate(zip(layer_sizes, y_positions)):
+            for neuron_index in range(layer_size):
+                ax.plot(x_positions[layer_index], y_pos[neuron_index], 'o', markersize=12, color='skyblue')
+
+        for i in range(len(self.layers)):
+            layer1_y_pos = y_positions[i]
+            layer2_y_pos = y_positions[i + 1]
+
+            weights = self.layers[i].weights
+
+            for j, y1 in enumerate(layer1_y_pos):
+                for k, y2 in enumerate(layer2_y_pos):
+                    ax.plot([x_positions[i], x_positions[i + 1]], [y1, y2], 'k-', linewidth=0.5)
+
+                    if show_weights:
+                        weight = weights[j, k]
+                        mid_x = (x_positions[i] + x_positions[i + 1]) / 2
+                        mid_y = (y1 + y2) / 2
+                        ax.text(mid_x, mid_y, f'{weight:.2f}', ha='center', va='center', fontsize=8, color='purple')
+        ax.text(x_positions[0], max_layer_size / 1.8, 'Input Layer', ha='center', fontsize=12, color='black')
+        ax.text(x_positions[-1], max_layer_size / 1.8, 'Output Layer', ha='center', fontsize=12, color='black')
+
+        plt.show()
