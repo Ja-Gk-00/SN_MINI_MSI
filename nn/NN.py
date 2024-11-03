@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
+from line_profiler import profile
 
-EPS = 1e-15
+
+EPS = 1e-12
 
 class LossFunction(ABC):
 
@@ -26,14 +28,40 @@ class MSE(LossFunction):
     def grad(self, yhat, y):
         return 2 * (yhat-y)
 
+
 class LogisticCrossEntropy(LossFunction):
-    def fun(self, yhat , y):
-        y_pred = np.clip(yhat, EPS, 1 - EPS)
-        return -np.mean(y * np.log(y_pred) + (1 - y) * np.log(1 - y_pred))
+    def __init__(self, from_logits):
+        self.from_logits = from_logits
+
+    def softmax(self, logits):
+        """Compute softmax for a 1D array (logits)."""
+        exp_logits = np.exp(logits - np.max(logits))  # For numerical stability
+        return exp_logits / np.sum(exp_logits)
+
+    def fun(self, yhat, y):
+        """Compute the cross-entropy loss."""
+        if self.from_logits:
+            # Convert logits to probabilities using softmax
+            y_pred = self.softmax(yhat)
+        else:
+            # Clip yhat to prevent log(0) issues
+            y_pred = np.clip(yhat, EPS, 1 - EPS)
+        
+        # Compute cross-entropy loss
+        return -np.mean(y * np.log(y_pred + EPS) + (1 - y) * np.log(1 - y_pred + EPS))
     
     def grad(self, yhat, y):
-        y_pred = np.clip(yhat, EPS, 1 - EPS)
-        return -(y / y_pred) + (1 - y) / (1 - y_pred)
+        """Compute the gradient of the loss with respect to yhat."""
+        if self.from_logits:
+            # Convert logits to probabilities using softmax
+            y_pred = self.softmax(yhat)
+            # Gradient for logits: softmax output - actual labels
+            return y_pred - y
+        else:
+            # Clip yhat to prevent division by zero issues
+            y_pred = np.clip(yhat, EPS, 1 - EPS)
+            # Gradient for probabilities
+            return -(y / y_pred) + (1 - y) / (1 - y_pred)
     
 
 
@@ -94,6 +122,15 @@ class ELU(ActivationFunction):
     
     def grad(self, x):
         return np.diagflat(np.where(x >= 0, 1, self.alpha * np.exp(x)))
+    
+
+class ReLU(ActivationFunction):
+    def fun(self, x):
+        return np.where(x >= 0, x, 0)
+
+    def grad(self, x):
+        return np.diagflat(np.where(x > 0, 1, 0))
+
     
 
 class Layer:
