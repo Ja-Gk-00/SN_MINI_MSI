@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-
-from line_profiler import profile
+from typing import Optional
 
 
 EPS = 1e-12
@@ -191,7 +189,7 @@ class NN:
         else:
             return self.input_shape
 
-    def add_new_zero_layer(self, neurons, activation: ActivationFunction | None = None, bias_active=True):
+    def add_new_zero_layer(self, neurons, activation: Optional[ActivationFunction] = None, bias_active=True):
         activation = activation or Sigmoid()
         layer = Layer.make_zero(
             neurons,
@@ -202,7 +200,7 @@ class NN:
         self.layers.append(layer)
         return layer
     
-    def add_new_random_layer(self, neurons, activation: ActivationFunction | None = None, bias_active=True):
+    def add_new_random_layer(self, neurons, activation: Optional[ActivationFunction] = None, bias_active=True):
         activation = activation or Sigmoid()
         layer = Layer.make_random(
             neurons,
