@@ -5,3 +5,6 @@ env/
 venv/
 ENV/
 
+# Local files
+/Local
+/local
