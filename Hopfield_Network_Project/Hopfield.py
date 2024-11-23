@@ -1,42 +1,42 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
-import ipywidgets as widgets
-from IPython.display import display
+import matplotlib.animation as animation
 
 class HopfieldNetwork:
     def __init__(self, n_neurons, shape=None):
         self.n_neurons = n_neurons
         self.weights = np.zeros((n_neurons, n_neurons)) 
         self.state = np.random.choice([-1, 1], size=n_neurons) 
+        self.bias = np.zeros(n_neurons)
         self.shape = shape
 
         if np.prod(self.shape) != n_neurons:
             raise ValueError("Shape must match the number of neurons.")
 
-    def train(self, patterns, learning_rule, eta=0.1):
+    def train(self, patterns, learning_rule, eta=0.01):
         if learning_rule == 'hebbian':
             for pattern in patterns:
                 self.weights += np.outer(pattern, pattern) 
         elif learning_rule == 'oja':
             for pattern in patterns:
-                output = np.dot(self.weights, pattern)
                 for i in range(self.n_neurons):
-                    self.weights[i] += eta * output[i] * (pattern - self.weights[i] * output[i])
+                    y_i = np.dot(self.weights[i], pattern)
+                    for j in range(self.n_neurons):
+                        self.weights[i, j] += eta * y_i * (pattern[j] - y_i * self.weights[i, j])
         else:
             raise ValueError("Learning rule must be either 'hebbian' or 'oja'")
 
         np.fill_diagonal(self.weights, 0)
         self.weights = self.weights / len(patterns)
+        self.bias = np.mean(patterns, axis=0)
 
     def update_asynchronous(self, neuron):
-
             # neuron = np.random.randint(0, self.n_neurons) 
-            input_sum = np.dot(self.weights[neuron], self.state)
+            input_sum = np.dot(self.weights[neuron], self.state) + self.bias[neuron]
             self.state[neuron] = 1 if input_sum >= 0 else -1
 
     def update_synchronous(self):
-        input_sums = np.dot(self.weights, self.state)
+        input_sums = np.dot(self.weights, self.state) + self.bias
         self.state = np.where(input_sums >= 0, 1, -1)
 
     def retrieve(self, input_pattern, mode='asynchronous', tolerance=1e-2):
@@ -67,42 +67,29 @@ class HopfieldNetwork:
     
     def energy(self):
 
-        return -0.5 * np.dot(self.state.T, np.dot(self.weights, self.state))
+        return -0.5 * np.dot(self.state.T, np.dot(self.weights, self.state)) - np.dot(self.bias, self.state)
 
-    def interactive_visualize(self, states):
+    def interactive_visualize(self, states, interval=500, repeat=True):
+        if not all(state.size == np.prod(self.shape) for state in states):
+            raise ValueError("Not all states match the network shape.")
 
-        current_step = [0] 
-
-        def update_plot(step):
-
-            ax.imshow(states[step].reshape(self.shape), cmap='gray', interpolation='nearest')
-            ax.set_title(f"Step {step + 1}/{len(states)}")
-            plt.draw()
-
-        def next_state(event):
-
-            if current_step[0] < len(states) - 1:
-                current_step[0] += 1
-                update_plot(current_step[0])
-
-        def prev_state(event):
-
-            if current_step[0] > 0:
-                current_step[0] -= 1
-                update_plot(current_step[0])
-
+        reshaped_states = [state.reshape(self.shape) for state in states]
 
         fig, ax = plt.subplots()
-        plt.subplots_adjust(bottom=0.2)
-        update_plot(0)
+        ax.axis('off')  
 
+        img = ax.imshow(reshaped_states[0], cmap='gray', vmin=0, vmax=1)
 
-        ax_prev = plt.axes([0.1, 0.05, 0.1, 0.075])  
-        ax_next = plt.axes([0.8, 0.05, 0.1, 0.075])
-        btn_prev = Button(ax_prev, 'Previous')
-        btn_next = Button(ax_next, 'Next')
+        def update(frame):
+            img.set_array(reshaped_states[frame])
+            return [img]
 
-        btn_prev.on_clicked(prev_state)
-        btn_next.on_clicked(next_state)
+        anim = animation.FuncAnimation(
+            fig,
+            update,
+            frames=len(reshaped_states),
+            interval=interval,
+            repeat=repeat
+        )
 
-        plt.show()
+        return anim
