@@ -45,7 +45,9 @@ class HopfieldNetwork:
         previous_energy = self.energy() 
 
         if mode == 'asynchronous':
-            for neuron in range(self.n_neurons):
+            neurons_list = np.arange(self.n_neurons)
+            np.random.shuffle(neurons_list)
+            for neuron in neurons_list:
                 self.update_asynchronous(neuron)
                 states.append(self.state.copy())
         elif mode == 'synchronous':
