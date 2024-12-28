@@ -4,9 +4,9 @@ import torch.optim as optim
 import pickle
 import os
 
-class WeatherSentimentNN(nn.Module):
+class ModelSimple(nn.Module):
     def __init__(self, input_size, hidden_sizes=[64, 32], output_size=1, learning_rate=0.001):
-        super(WeatherSentimentNN, self).__init__()
+        super(ModelSimple, self).__init__()
         
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
