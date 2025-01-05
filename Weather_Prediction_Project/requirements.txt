@@ -1,0 +1,8 @@
+numpy==1.26.4
+notebook==7.2.2
+pandas==2.2.3
+seaborn==0.13.2
+torch==2.5.1+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+torchaudio==2.5.1+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+torchvision==0.20.1+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+scikit-learn==1.6.0
