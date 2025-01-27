@@ -4,23 +4,23 @@ import torch.optim as optim
 import pickle
 import os
 
-class Modelv7(nn.Module):
-    def __init__(self, input_size, hidden_sizes=[32, 16, 4], output_size=1, learning_rate=0.001):
-        super(Modelv7, self).__init__()
+class Modelw2(nn.Module):
+    def __init__(self, input_size, hidden_sizes=[64, 16, 4], output_size=1, learning_rate=0.001):
+        super(Modelw2, self).__init__()
         
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
-            nn.GELU(),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
-            nn.GELU(),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.Linear(hidden_sizes[1], hidden_sizes[2]),
-            nn.GELU(),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.Linear(hidden_sizes[2], output_size)
         )
 
-        self.criterion = nn.HuberLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-
+    
     def forward(self, x):
         return self.model(x)
     
@@ -76,8 +76,10 @@ class Modelv7(nn.Module):
         self.eval()
         print(f"Weights loaded from {filepath}")
     
-    def predict(self, inputs):
+    def predict(self, x):
         self.eval()
         with torch.no_grad():
-            outputs = self.forward(inputs)
-        return outputs.squeeze().numpy()
+            logits = self.forward(x)
+            probabilities = torch.sigmoid(logits)
+            return probabilities
+

@@ -10,11 +10,11 @@ class Modelv6(nn.Module):
         
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
-            nn.ReLU(),
+            nn.Sigmoid(),
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
-            nn.ReLU(),
+            nn.Sigmoid(),
             nn.Linear(hidden_sizes[1], hidden_sizes[2]),
-            nn.ReLU(),
+            nn.Sigmoid(),
             nn.Linear(hidden_sizes[2], output_size)
         )
 

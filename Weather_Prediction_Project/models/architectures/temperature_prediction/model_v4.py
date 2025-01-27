@@ -5,7 +5,7 @@ import pickle
 import os
 
 class Modelv4(nn.Module):
-    def __init__(self, input_size, hidden_sizes=[80, 64, 16, 8], output_size=1, learning_rate=0.001):
+    def __init__(self, input_size, hidden_sizes=[80, 40, 16, 4], output_size=1, learning_rate=0.001):
         super(Modelv4, self).__init__()
         
         self.model = nn.Sequential(

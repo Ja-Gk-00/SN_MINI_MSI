@@ -5,7 +5,7 @@ import pickle
 import os
 
 class Modelv3(nn.Module):
-    def __init__(self, input_size, hidden_sizes=[128, 64, 16], output_size=1, learning_rate=0.001):
+    def __init__(self, input_size, hidden_sizes=[64, 32, 8], output_size=1, learning_rate=0.001):
         super(Modelv3, self).__init__()
         
         self.model = nn.Sequential(
@@ -18,7 +18,7 @@ class Modelv3(nn.Module):
             nn.Linear(hidden_sizes[2], output_size)
         )
 
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.HuberLoss()
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
     
     def forward(self, x):
