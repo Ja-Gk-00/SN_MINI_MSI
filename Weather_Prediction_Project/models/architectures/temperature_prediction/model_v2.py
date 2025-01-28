@@ -36,7 +36,7 @@ class Modelv2(nn.Module):
                 self.optimizer.step()
                 epoch_loss += loss.item() * inputs.size(0)
             epoch_loss /= len(train_loader.dataset)
-            if (epoch+1) % 10 == 0 or epoch == 0:
+            if (epoch+1) % 10 == 0 or epoch == 0 or (epoch+1) == epochs:
                 print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.4f}")
     
     def test_model(self, test_loader):

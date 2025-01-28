@@ -1,6 +1,4 @@
 
-
-
 class DataLoader(object):
 
     def __init__(self):
@@ -15,3 +13,4 @@ class DataLoader(object):
     def load_scaler_based_on_name(self):
         pass
 
+    
